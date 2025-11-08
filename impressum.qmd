@@ -2,4 +2,7 @@
 title: "Impressum"
 ---
 
-_Trage hier deine Anbieterkennzeichnung gemäß § 5 TMG ein._
+<!-- Replace with your real provider details per § 5 TMG -->
+**Anbieter:** Dein Name / Firma  
+**Adresse:** Straße Nr, PLZ Ort, Deutschland  
+**Kontakt:** hello@bronze2gold.dev

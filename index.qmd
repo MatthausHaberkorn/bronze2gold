@@ -5,7 +5,7 @@ toc: false
 ---
 
 ::: {.hero}
-# From raw **bronze** to decision‑grade **gold**.
+# From raw **bronze** to decision-grade **gold**.
 
 Patterns, playbooks, and tiny reproducible demos in Data Engineering, Databricks, and Python.
 

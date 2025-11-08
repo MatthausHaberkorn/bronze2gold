@@ -2,4 +2,10 @@
 title: "About"
 ---
 
-Hi—I'm Mat. I turn bronze into gold with clean pipelines, good tests, and a dash of duck (DB).
+Hi—I'm Mat. I design reliable data platforms and turn messy telemetry into useful systems.
+
+- Senior Data Engineer (Databricks, Spark, Delta, Python)
+- Physics background; ex Tech Lead
+- Into lakehouse architectures, graph + geospatial, and tidy pipelines
+
+**Elsewhere:** [GitHub](https://github.com/MatthausHaberkorn) · [LinkedIn](https://www.linkedin.com/in/matthäus-haberkorn)
