@@ -1,0 +1,198 @@
+---
+title: "From Bronze to Gold: a practical medallion blueprint"
+date: 2025-11-08
+categories: [data-engineering, databricks, spark, delta, medallion]
+image: ../images/medallion.png
+image-alt: "Bronze → Silver → Gold diagram"
+description: "A minimal, repeatable medallion layout with MERGE INTO patterns, idempotency checks, and a tiny PySpark example you can reuse."
+format:
+  html:
+    toc: true
+    code-copy: true
+    df-print: paged
+  gfm: default
+---
+
+::: {.content-visible when-format="gfm"}
+**TL;DR**: A small, repeatable medallion blueprint (Bronze→Silver→Gold) with safe `MERGE INTO` patterns, idempotency, and a tiny PySpark check.  
+**Full article**: https://bronze2gold.dev/blog.html?utm_source=linkedin&utm_medium=social&utm_campaign=hello-medallion
+:::
+
+::: {.content-hidden when-format="gfm"}
+
+# Why medallion (beyond the buzzword)
+
+The medallion pattern gives you **clear seams** in your platform:
+
+- **Bronze** — raw, append-only, minimal transforms (land it fast, keep lineage).  
+- **Silver** — cleaned & conformed (types, dedup, business keys).  
+- **Gold** — analytics-ready (star schemas, aggregates, ML features).
+
+Those seams make testing, ownership, and incident response easier. Each layer gets its own storage, tables, schemas, and SLAs.
+
+---
+
+## Minimal layout to start
+
+Use any storage; the idea is consistent paths and naming:
+
+```
+/bronze/<source>/<ingest_date>/part-*.parquet
+/silver/<entity>/v1/part-*.parquet
+/gold/<mart>/<table>/part-*.parquet
+```
+
+Suggested table namespaces (example):
+
+- `bronze.orders_raw`
+- `silver.orders_curated`
+- `gold.sales.fct_orders`
+
+Keep **raw** immutable (append only), and make Silver idempotent so reruns don’t create duplicates.
+
+---
+
+## A safe `MERGE INTO` skeleton (Delta Lake style)
+
+Common upsert into Silver from a deduped Bronze view:
+
+```sql
+-- Source is a deduplicated view of bronze
+MERGE INTO silver.orders_curated AS s
+USING (
+  SELECT *
+  FROM bronze.orders_raw
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY order_id
+    ORDER BY ingest_ts DESC
+  ) = 1
+) AS b
+ON s.order_id = b.order_id
+WHEN MATCHED THEN UPDATE SET
+  s.customer_id = b.customer_id,
+  s.order_ts    = b.order_ts,
+  s.status      = b.status,
+  s.amount      = b.amount,
+  s.src_ingest_ts = b.ingest_ts
+WHEN NOT MATCHED THEN INSERT *
+;
+```
+
+**Why this is safe-ish:**
+- Deduplication happens **before** the merge (one “winner” per key).
+- Update/insert paths are explicit; you can add column-level guards later (e.g., only update if `b.order_ts >= s.order_ts`).
+
+---
+
+## Idempotency: rerun without surprises
+
+Simple guardrails:
+
+1. **Bronze dedup**: last record per business key (e.g., `ROW_NUMBER()` by `ingest_ts`).  
+2. **Deterministic filters**: watermark by partition/date to avoid double counting backfills.  
+3. **Checks after write**: assert distinct keys == count of rows for unique entities.
+
+PySpark example:
+
+```python
+from pyspark.sql import functions as F, Window as W
+
+bronze = spark.read.table("bronze.orders_raw")
+
+w = W.partitionBy("order_id").orderBy(F.col("ingest_ts").desc())
+silver_base = (
+    bronze
+    .withColumn("rn", F.row_number().over(w))
+    .where("rn = 1")
+    .drop("rn")
+)
+
+# Basic data quality
+row_count = silver_base.count()
+key_count = silver_base.select(F.countDistinct("order_id")).first()[0]
+assert key_count == row_count, f"Non-unique order_id: keys={key_count}, rows={row_count}"
+
+# Optional: partition pruning watermark (last 3 days as example)
+from datetime import datetime, timedelta
+cutoff = (datetime.utcnow() - timedelta(days=3)).isoformat()
+silver_recent = silver_base.where(F.col("ingest_ts") >= cutoff)
+
+silver_recent.createOrReplaceTempView("orders_recent")
+```
+
+---
+
+## Handling skew in joins (the 90-second version)
+
+Skew happens when a few keys are **too popular**, causing one reducer to work harder than the rest. Tactics:
+
+- **Salting**: add a small random salt to heavy keys on both sides, then aggregate.  
+- **AQE (Adaptive Query Execution)**: let the engine split skewed partitions at runtime.  
+- **Broadcast small tables**: avoid shuffles where possible.
+
+Tiny salting sketch:
+
+```sql
+-- Heavy key example: store_id with massive volume
+WITH salted_b AS (
+  SELECT
+    *,
+    CASE WHEN store_id IN (101, 202) THEN CAST(rand()*8 AS INT) ELSE 0 END AS salt
+  FROM silver.orders_curated
+),
+salted_dim AS (
+  SELECT
+    d.*,
+    s.salt
+  FROM dim.stores d
+  -- explode salts 0..7 for heavy keys only (implementation varies)
+  CROSS JOIN (SELECT explode(sequence(0,7)) AS salt)
+)
+SELECT /*+ REPARTITION(200) */
+  b.order_id, d.region
+FROM salted_b b
+JOIN salted_dim d
+  ON b.store_id = d.store_id AND b.salt = d.salt;
+```
+
+---
+
+## A tiny end-to-end practice loop
+
+1) **Land Bronze** (CSV/JSON sample is fine).  
+2) **Build a deduped view** with `ROW_NUMBER()`/Window.  
+3) **`MERGE INTO` Silver** from that view.  
+4) **Assert** uniqueness and expected row counts.  
+5) **Publish Gold** as an aggregate (daily sales, top N).
+
+Gold example (daily revenue):
+
+```sql
+CREATE OR REPLACE TABLE gold.sales.fct_daily_revenue AS
+SELECT
+  date_trunc('day', order_ts) AS day,
+  SUM(amount) AS revenue
+FROM silver.orders_curated
+GROUP BY 1;
+```
+
+---
+
+## A checklist you can reuse
+
+- [ ] Bronze is append-only; no transforms beyond minimal parsing.  
+- [ ] Silver merge reads from a **deduped** source view.  
+- [ ] Idempotency check (keys == rows) after the Silver write.  
+- [ ] AQE enabled; broadcast joins where appropriate.  
+- [ ] Gold aggregates are **recomputable** (no irreversible logic).  
+- [ ] Documentation: table owner, SLA, and lineage noted in the repo.
+
+---
+
+## What to do next
+
+- Add a **post template** so front-matter is consistent.  
+- Wire **giscus** for comments and **Plausible** for analytics.  
+- Publish a follow-up: “`MERGE INTO` patterns: slowly changing keys vs. late arriving facts.”
+
+:::

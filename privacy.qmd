@@ -1,0 +1,5 @@
+---
+title: "Privacy"
+---
+
+Kurzfassung: Keine Cookies, keine Tracker außer einer anonymen Seitenanalyse (optional).

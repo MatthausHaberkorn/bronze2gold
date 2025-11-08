@@ -1,0 +1,29 @@
+:root{
+  --accent: #E7B416; /* warm gold */
+  --bg-hero: radial-gradient(1200px 600px at 20% 20%, rgba(231,180,22,0.15), transparent 60%);
+}
+body { font-feature-settings: "rlig" 1, "calt" 1; }
+.navbar { box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+a { text-underline-offset: 2px; }
+.hero{
+  padding: 6rem 1rem 3rem; 
+  background: var(--bg-hero);
+  text-align: center;
+  margin: -1rem -1rem 2rem;
+}
+.hero-inner{ max-width: 980px; margin: 0 auto; }
+.hero h1{ font-size: clamp(2rem, 2.5vw + 1rem, 3rem); font-weight: 800; line-height: 1.1; }
+.hero .accent{ color: var(--accent); }
+.hero p{ font-size: 1.125rem; opacity: .9; }
+.btn{
+  display:inline-block; padding:.7rem 1rem; border-radius:.75rem; margin:.3rem .4rem 0;
+  text-decoration:none; border:1px solid #ddd;
+  transition: transform .06s ease, box-shadow .2s ease, background .2s ease;
+}
+.btn.cta{ background: var(--accent); color:#222; border-color: transparent; font-weight:700; }
+.btn.ghost{ background: transparent; }
+.btn:hover{ transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+.quarto-title-banner{ display:none; } /* cleaner pages */
+.card, .quarto-grid-item { border-radius: 1rem; box-shadow: 0 6px 18px rgba(0,0,0,.06); }
+pre code{ border-radius:.75rem; }
+blockquote{ border-left:4px solid var(--accent); padding-left:1rem; }

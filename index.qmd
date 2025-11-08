@@ -1,0 +1,28 @@
+---
+title: "Bronze → Gold"
+page-layout: full
+toc: false
+---
+
+::: {.hero}
+# From raw **bronze** to decision‑grade **gold**.
+
+Patterns, playbooks, and tiny reproducible demos in Data Engineering, Databricks, and Python.
+
+[Read the blog](blog.html){.btn .cta} [About](about.html){.btn .ghost}
+:::
+
+::: columns
+::: column
+### Practical recipes
+MERGE INTO patterns, idempotent pipelines, skew-busting, and observability you can copy.
+:::
+::: column
+### Small, runnable demos
+Short posts with code you can execute locally or in notebooks.
+:::
+::: column
+### Opinionated, not dogmatic
+Tools fade. Principles last. We keep both in view.
+:::
+:::

@@ -1,0 +1,36 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "Bronze → Gold"
+  site-url: https://bronze2gold.dev
+  navbar:
+    logo: images/medal.svg
+    left:
+      - text: Blog
+        href: blog.qmd
+      - text: About
+        href: about.qmd
+    right:
+      - icon: github
+        href: https://github.com/MatthausHaberkorn
+        aria-label: GitHub
+  page-footer:
+    left: |
+      © {year} Bronze → Gold
+    right: |
+      <a href="/impressum.qmd">Impressum</a> · <a href="/privacy.qmd">Privacy</a>
+
+format:
+  html:
+    theme:
+      - cosmo
+    css: styles.css
+    toc: true
+    code-copy: true
+    smooth-scroll: true
+    df-print: paged
+    link-external-newwindow: true
+    anchor-sections: true
+    include-after-body: footer.html

@@ -1,0 +1,522 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss  xmlns:atom="http://www.w3.org/2005/Atom" 
+      xmlns:media="http://search.yahoo.com/mrss/" 
+      xmlns:content="http://purl.org/rss/1.0/modules/content/" 
+      xmlns:dc="http://purl.org/dc/elements/1.1/" 
+      version="2.0">
+<channel>
+<title>Bronze → Gold</title>
+<link>https://bronze2gold.dev/blog.html</link>
+<atom:link href="https://bronze2gold.dev/blog.xml" rel="self" type="application/rss+xml"/>
+<description></description>
+<generator>quarto-1.8.25</generator>
+<lastBuildDate>Fri, 07 Nov 2025 23:00:00 GMT</lastBuildDate>
+<item>
+  <title>From Bronze to Gold: a practical medallion blueprint</title>
+  <link>https://bronze2gold.dev/posts/2025-11-08-hello-medaillon.html</link>
+  <description><![CDATA[ 
+
+
+
+
+<section id="why-medallion-beyond-the-buzzword" class="level1">
+<h1>Why medallion (beyond the buzzword)</h1>
+<p>The medallion pattern gives you <strong>clear seams</strong> in your platform:</p>
+<ul>
+<li><strong>Bronze</strong> — raw, append-only, minimal transforms (land it fast, keep lineage).<br>
+</li>
+<li><strong>Silver</strong> — cleaned &amp; conformed (types, dedup, business keys).<br>
+</li>
+<li><strong>Gold</strong> — analytics-ready (star schemas, aggregates, ML features).</li>
+</ul>
+<p>Those seams make testing, ownership, and incident response easier. Each layer gets its own storage, tables, schemas, and SLAs.</p>
+<hr>
+<section id="minimal-layout-to-start" class="level2">
+<h2 class="anchored" data-anchor-id="minimal-layout-to-start">Minimal layout to start</h2>
+<p>Use any storage; the idea is consistent paths and naming:</p>
+<pre><code>/bronze/&lt;source&gt;/&lt;ingest_date&gt;/part-*.parquet
+/silver/&lt;entity&gt;/v1/part-*.parquet
+/gold/&lt;mart&gt;/&lt;table&gt;/part-*.parquet</code></pre>
+<p>Suggested table namespaces (example):</p>
+<ul>
+<li><code>bronze.orders_raw</code></li>
+<li><code>silver.orders_curated</code></li>
+<li><code>gold.sales.fct_orders</code></li>
+</ul>
+<p>Keep <strong>raw</strong> immutable (append only), and make Silver idempotent so reruns don’t create duplicates.</p>
+<hr>
+</section>
+<section id="a-safe-merge-into-skeleton-delta-lake-style" class="level2">
+<h2 class="anchored" data-anchor-id="a-safe-merge-into-skeleton-delta-lake-style">A safe <code>MERGE INTO</code> skeleton (Delta Lake style)</h2>
+<p>Common upsert into Silver from a deduped Bronze view:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb2-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-- Source is a deduplicated view of bronze</span></span>
+<span id="cb2-2"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">MERGE</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">INTO</span> silver.orders_curated <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span> s</span>
+<span id="cb2-3"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">USING</span> (</span>
+<span id="cb2-4">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">SELECT</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span></span>
+<span id="cb2-5">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">FROM</span> bronze.orders_raw</span>
+<span id="cb2-6">  QUALIFY <span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">ROW_NUMBER</span>() <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">OVER</span> (</span>
+<span id="cb2-7">    <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">PARTITION</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">BY</span> order_id</span>
+<span id="cb2-8">    <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">ORDER</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">BY</span> ingest_ts <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">DESC</span></span>
+<span id="cb2-9">  ) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb2-10">) <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span> b</span>
+<span id="cb2-11"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">ON</span> s.order_id <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> b.order_id</span>
+<span id="cb2-12"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">WHEN</span> MATCHED <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">THEN</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">UPDATE</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">SET</span></span>
+<span id="cb2-13">  s.customer_id <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> b.customer_id,</span>
+<span id="cb2-14">  s.order_ts    <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> b.order_ts,</span>
+<span id="cb2-15">  s.status      <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> b.status,</span>
+<span id="cb2-16">  s.amount      <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> b.amount,</span>
+<span id="cb2-17">  s.src_ingest_ts <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> b.ingest_ts</span>
+<span id="cb2-18"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">WHEN</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">NOT</span> MATCHED <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">THEN</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">INSERT</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span></span>
+<span id="cb2-19">;</span></code></pre></div></div>
+<p><strong>Why this is safe-ish:</strong> - Deduplication happens <strong>before</strong> the merge (one “winner” per key). - Update/insert paths are explicit; you can add column-level guards later (e.g., only update if <code>b.order_ts &gt;= s.order_ts</code>).</p>
+<hr>
+</section>
+<section id="idempotency-rerun-without-surprises" class="level2">
+<h2 class="anchored" data-anchor-id="idempotency-rerun-without-surprises">Idempotency: rerun without surprises</h2>
+<p>Simple guardrails:</p>
+<ol type="1">
+<li><strong>Bronze dedup</strong>: last record per business key (e.g., <code>ROW_NUMBER()</code> by <code>ingest_ts</code>).<br>
+</li>
+<li><strong>Deterministic filters</strong>: watermark by partition/date to avoid double counting backfills.<br>
+</li>
+<li><strong>Checks after write</strong>: assert distinct keys == count of rows for unique entities.</li>
+</ol>
+<p>PySpark example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> pyspark.sql <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> functions <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> F, Window <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> W</span>
+<span id="cb3-2"></span>
+<span id="cb3-3">bronze <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> spark.read.table(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"bronze.orders_raw"</span>)</span>
+<span id="cb3-4"></span>
+<span id="cb3-5">w <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> W.partitionBy(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"order_id"</span>).orderBy(F.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"ingest_ts"</span>).desc())</span>
+<span id="cb3-6">silver_base <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> (</span>
+<span id="cb3-7">    bronze</span>
+<span id="cb3-8">    .withColumn(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"rn"</span>, F.row_number().over(w))</span>
+<span id="cb3-9">    .where(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"rn = 1"</span>)</span>
+<span id="cb3-10">    .drop(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"rn"</span>)</span>
+<span id="cb3-11">)</span>
+<span id="cb3-12"></span>
+<span id="cb3-13"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Basic data quality</span></span>
+<span id="cb3-14">row_count <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> silver_base.count()</span>
+<span id="cb3-15">key_count <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> silver_base.select(F.countDistinct(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"order_id"</span>)).first()[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]</span>
+<span id="cb3-16"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">assert</span> key_count <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> row_count, <span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Non-unique order_id: keys=</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>key_count<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">, rows=</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>row_count<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span></span>
+<span id="cb3-17"></span>
+<span id="cb3-18"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Optional: partition pruning watermark (last 3 days as example)</span></span>
+<span id="cb3-19"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> datetime <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> datetime, timedelta</span>
+<span id="cb3-20">cutoff <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> (datetime.utcnow() <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> timedelta(days<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">3</span>)).isoformat()</span>
+<span id="cb3-21">silver_recent <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> silver_base.where(F.col(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"ingest_ts"</span>) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&gt;=</span> cutoff)</span>
+<span id="cb3-22"></span>
+<span id="cb3-23">silver_recent.createOrReplaceTempView(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"orders_recent"</span>)</span></code></pre></div></div>
+<hr>
+</section>
+<section id="handling-skew-in-joins-the-90-second-version" class="level2">
+<h2 class="anchored" data-anchor-id="handling-skew-in-joins-the-90-second-version">Handling skew in joins (the 90-second version)</h2>
+<p>Skew happens when a few keys are <strong>too popular</strong>, causing one reducer to work harder than the rest. Tactics:</p>
+<ul>
+<li><strong>Salting</strong>: add a small random salt to heavy keys on both sides, then aggregate.<br>
+</li>
+<li><strong>AQE (Adaptive Query Execution)</strong>: let the engine split skewed partitions at runtime.<br>
+</li>
+<li><strong>Broadcast small tables</strong>: avoid shuffles where possible.</li>
+</ul>
+<p>Tiny salting sketch:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb4-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-- Heavy key example: store_id with massive volume</span></span>
+<span id="cb4-2"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">WITH</span> salted_b <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span> (</span>
+<span id="cb4-3">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">SELECT</span></span>
+<span id="cb4-4">    <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span>,</span>
+<span id="cb4-5">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">CASE</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">WHEN</span> store_id <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">IN</span> (<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">101</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">202</span>) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">THEN</span> <span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">CAST</span>(rand()<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">8</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span> <span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">INT</span>) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">ELSE</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">END</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span> salt</span>
+<span id="cb4-6">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">FROM</span> silver.orders_curated</span>
+<span id="cb4-7">),</span>
+<span id="cb4-8">salted_dim <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span> (</span>
+<span id="cb4-9">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">SELECT</span></span>
+<span id="cb4-10">    d.<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span>,</span>
+<span id="cb4-11">    s.salt</span>
+<span id="cb4-12">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">FROM</span> dim.stores d</span>
+<span id="cb4-13">  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-- explode salts 0..7 for heavy keys only (implementation varies)</span></span>
+<span id="cb4-14">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">CROSS</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">JOIN</span> (<span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">SELECT</span> explode(<span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">sequence</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>,<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">7</span>)) <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span> salt)</span>
+<span id="cb4-15">)</span>
+<span id="cb4-16"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">SELECT</span> <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/*+ REPARTITION(200) */</span></span>
+<span id="cb4-17">  b.order_id, d.region</span>
+<span id="cb4-18"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">FROM</span> salted_b b</span>
+<span id="cb4-19"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">JOIN</span> salted_dim d</span>
+<span id="cb4-20">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">ON</span> b.store_id <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> d.store_id <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AND</span> b.salt <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> d.salt;</span></code></pre></div></div>
+<hr>
+</section>
+<section id="a-tiny-end-to-end-practice-loop" class="level2">
+<h2 class="anchored" data-anchor-id="a-tiny-end-to-end-practice-loop">A tiny end-to-end practice loop</h2>
+<ol type="1">
+<li><strong>Land Bronze</strong> (CSV/JSON sample is fine).<br>
+</li>
+<li><strong>Build a deduped view</strong> with <code>ROW_NUMBER()</code>/Window.<br>
+</li>
+<li><strong><code>MERGE INTO</code> Silver</strong> from that view.<br>
+</li>
+<li><strong>Assert</strong> uniqueness and expected row counts.<br>
+</li>
+<li><strong>Publish Gold</strong> as an aggregate (daily sales, top N).</li>
+</ol>
+<p>Gold example (daily revenue):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode sql code-with-copy"><code class="sourceCode sql"><span id="cb5-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">CREATE</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">OR</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">REPLACE</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">TABLE</span> gold.sales.fct_daily_revenue <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span></span>
+<span id="cb5-2"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">SELECT</span></span>
+<span id="cb5-3">  date_trunc(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'day'</span>, order_ts) <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span> <span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">day</span>,</span>
+<span id="cb5-4">  <span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">SUM</span>(amount) <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">AS</span> revenue</span>
+<span id="cb5-5"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">FROM</span> silver.orders_curated</span>
+<span id="cb5-6"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">GROUP</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">BY</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>;</span></code></pre></div></div>
+<hr>
+</section>
+<section id="a-checklist-you-can-reuse" class="level2">
+<h2 class="anchored" data-anchor-id="a-checklist-you-can-reuse">A checklist you can reuse</h2>
+<ul class="task-list">
+<li><label><input type="checkbox">Bronze is append-only; no transforms beyond minimal parsing.<br>
+</label></li>
+<li><label><input type="checkbox">Silver merge reads from a <strong>deduped</strong> source view.<br>
+</label></li>
+<li><label><input type="checkbox">Idempotency check (keys == rows) after the Silver write.<br>
+</label></li>
+<li><label><input type="checkbox">AQE enabled; broadcast joins where appropriate.<br>
+</label></li>
+<li><label><input type="checkbox">Gold aggregates are <strong>recomputable</strong> (no irreversible logic).<br>
+</label></li>
+<li><label><input type="checkbox">Documentation: table owner, SLA, and lineage noted in the repo.</label></li>
+</ul>
+<hr>
+</section>
+<section id="what-to-do-next" class="level2">
+<h2 class="anchored" data-anchor-id="what-to-do-next">What to do next</h2>
+<ul>
+<li>Add a <strong>post template</strong> so front-matter is consistent.<br>
+</li>
+<li>Wire <strong>giscus</strong> for comments and <strong>Plausible</strong> for analytics.<br>
+</li>
+<li>Publish a follow-up: “<code>MERGE INTO</code> patterns: slowly changing keys vs.&nbsp;late arriving facts.”</li>
+</ul>
+
+
+</section>
+</section>
+
+ ]]></description>
+  <category>data-engineering</category>
+  <category>databricks</category>
+  <category>spark</category>
+  <category>delta</category>
+  <category>medallion</category>
+  <guid>https://bronze2gold.dev/posts/2025-11-08-hello-medaillon.html</guid>
+  <pubDate>Fri, 07 Nov 2025 23:00:00 GMT</pubDate>
+  <media:content url="https://bronze2gold.dev/images/medallion.png" medium="image" type="image/png"/>
+</item>
+</channel>
+</rss>

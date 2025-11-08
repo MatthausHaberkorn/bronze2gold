@@ -1,0 +1,5 @@
+---
+title: "About"
+---
+
+Hi—I'm Mat. I turn bronze into gold with clean pipelines, good tests, and a dash of duck (DB).
