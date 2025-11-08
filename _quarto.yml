@@ -1,10 +1,14 @@
 project:
   type: website
   output-dir: docs
+  resources:
+    - CNAME
 
 website:
   title: "Bronze → Gold"
   site-url: https://bronze2gold.dev
+  open-graph: true
+  twitter-card: true
   navbar:
     logo: images/medal.svg
     left:
@@ -14,23 +18,20 @@ website:
         href: about.qmd
     right:
       - icon: github
-        href: https://github.com/MatthausHaberkorn
         aria-label: GitHub
-  page-footer:
-    left: |
-      © {year} Bronze → Gold
-    right: |
-      <a href="/impressum.qmd">Impressum</a> · <a href="/privacy.qmd">Privacy</a>
+        href: https://github.com/MatthausHaberkorn
+      - text: RSS
+        href: blog.xml
 
 format:
   html:
     theme:
-      - cosmo
+      light: cosmo
+      dark: darkly
+    include-in-header: fonts.html
     css: styles.css
     toc: true
     code-copy: true
     smooth-scroll: true
-    df-print: paged
-    link-external-newwindow: true
+    highlight-style: dracula
     anchor-sections: true
-    include-after-body: footer.html

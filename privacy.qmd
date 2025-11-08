@@ -2,4 +2,8 @@
 title: "Privacy"
 ---
 
-Kurzfassung: Keine Cookies, keine Tracker außer einer anonymen Seitenanalyse (optional).
+Short version: minimal data, no creepy tracking.
+
+- No cookies for basic browsing.
+- Optional anonymous analytics (if enabled later).  
+- Contact: hello@bronze2gold.dev
