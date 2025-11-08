@@ -26,3 +26,14 @@ Short posts with code you can execute locally or in notebooks.
 Tools fade. Principles last. We keep both in view.
 :::
 :::
+
+## Latest posts
+::: {.listing}
+# This block renders a post listing (same as the guide)
+listing:
+  contents: posts
+  sort: "date desc"
+  type: grid
+  categories: true
+  feed: true
+:::

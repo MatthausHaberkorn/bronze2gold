@@ -88,7 +88,14 @@
     "href": "index.html",
     "title": "Bronze → Gold",
     "section": "",
-    "text": "From raw bronze to decision-grade gold.\nPatterns, playbooks, and tiny reproducible demos in Data Engineering, Databricks, and Python.\nRead the blog About\n\n\n\n\nPractical recipes\nMERGE INTO patterns, idempotent pipelines, skew-busting, and observability you can copy.\n\n\n\nSmall, runnable demos\nShort posts with code you can execute locally or in notebooks.\n\n\n\nOpinionated, not dogmatic\nTools fade. Principles last. We keep both in view."
+    "text": "Patterns, playbooks, and tiny reproducible demos in Data Engineering, Databricks, and Python.\nRead the blog About"
+  },
+  {
+    "objectID": "index.html#latest-posts",
+    "href": "index.html#latest-posts",
+    "title": "Bronze → Gold",
+    "section": "Latest posts",
+    "text": "Latest posts"
   },
   {
     "objectID": "about.html",
